@@ -6,7 +6,12 @@ import { format } from "date-fns";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Navbar from "../../components/Navbar";
-import { DEMO_MARKETS, DEMO_POSITIONS, calculatePositionPnl } from "../../utils/program";
+import {
+  CATEGORY_STYLES,
+  DEMO_MARKETS,
+  DEMO_POSITIONS,
+  calculatePositionPnl,
+} from "../../utils/program";
 import {
   ARCIUM_DEVNET_CLUSTER,
   encryptChoice,
@@ -57,6 +62,7 @@ export default function MarketPage() {
 
   const isOpen = market.status === "Open";
   const isSettled = market.status === "Settled";
+  const categoryStyle = CATEGORY_STYLES[market.category];
   const total = (market.revealedYesStake ?? 0) + (market.revealedNoStake ?? 0);
   const yesP = total === 0 ? 50 : Math.round(((market.revealedYesStake ?? 0) / total) * 100);
   const noP = 100 - yesP;
@@ -112,7 +118,21 @@ export default function MarketPage() {
             <div className="card mb-6 p-6">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <h1 className="flex-1 text-xl font-medium leading-snug text-white">{market.title}</h1>
-                <div className="encrypted-tag flex-shrink-0">{market.status.toUpperCase()}</div>
+                <div className="flex flex-shrink-0 flex-col items-end gap-2">
+                  <div
+                    className="font-mono text-xs"
+                    style={{
+                      background: categoryStyle.bg,
+                      border: `1px solid ${categoryStyle.border}`,
+                      borderRadius: "999px",
+                      color: categoryStyle.text,
+                      padding: "4px 10px",
+                    }}
+                  >
+                    {market.category.toUpperCase()}
+                  </div>
+                  <div className="encrypted-tag">{market.status.toUpperCase()}</div>
+                </div>
               </div>
               <p className="mb-4 text-sm leading-relaxed text-slate-400">{market.description}</p>
               <div className="grid gap-4 sm:grid-cols-2">

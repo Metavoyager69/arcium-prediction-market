@@ -1,14 +1,17 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import Navbar from "../components/Navbar";
 import MarketCard from "../components/MarketCard";
 import {
+  CATEGORY_STYLES,
   DEMO_MARKETS,
   DEMO_POSITIONS,
+  MARKET_CATEGORIES,
   calculatePositionPnl,
   getPortfolioSummary,
+  type MarketCategory,
 } from "../utils/program";
 
 const TICKER_ITEMS = [
@@ -24,18 +27,33 @@ function formatSigned(value: number): string {
   return `${value >= 0 ? "+" : "-"}${rounded} SOL`;
 }
 
+type StatusFilter = "all" | "open" | "settled";
+type CategoryFilter = "all" | MarketCategory;
+
 export default function Home() {
-  const [filter, setFilter] = useState<"all" | "open" | "settled">("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
   const filtered = useMemo(
     () =>
       DEMO_MARKETS.filter((market) => {
-        if (filter === "open") return market.status === "Open";
-        if (filter === "settled") return market.status === "Settled";
+        if (statusFilter === "open" && market.status !== "Open") return false;
+        if (statusFilter === "settled" && market.status !== "Settled") return false;
+        if (categoryFilter !== "all" && market.category !== categoryFilter) return false;
         return true;
       }),
-    [filter]
+    [statusFilter, categoryFilter]
   );
+
+  const groupedByCategory = useMemo(() => {
+    if (categoryFilter !== "all") {
+      return [{ category: categoryFilter, markets: filtered }];
+    }
+    return MARKET_CATEGORIES.map((category) => ({
+      category,
+      markets: filtered.filter((market) => market.category === category),
+    })).filter((group) => group.markets.length > 0);
+  }, [filtered, categoryFilter]);
 
   const summary = useMemo(() => getPortfolioSummary(DEMO_POSITIONS), []);
   const recentPositions = useMemo(
@@ -205,19 +223,60 @@ export default function Home() {
 
         <section id="markets" className="mx-auto max-w-5xl px-6 pb-20">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <h2 className="font-display text-3xl tracking-widest text-white">ACTIVE MARKETS</h2>
-            <div className="flex gap-2">
+            <h2 className="font-display text-3xl tracking-widest text-white">MARKET CATEGORIES</h2>
+          </div>
+
+          <div className="mb-4">
+            <p className="mb-2 font-mono text-xs tracking-widest text-slate-500">CATEGORY</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setCategoryFilter("all")}
+                className="rounded-lg px-4 py-2 font-mono text-xs tracking-wider transition-all"
+                style={{
+                  background: categoryFilter === "all" ? "rgba(107,63,160,0.3)" : "transparent",
+                  border: `1px solid ${
+                    categoryFilter === "all" ? "rgba(192,132,252,0.5)" : "rgba(255,255,255,0.1)"
+                  }`,
+                  color: categoryFilter === "all" ? "#C084FC" : "#64748b",
+                }}
+              >
+                ALL CATEGORIES
+              </button>
+              {MARKET_CATEGORIES.map((category) => {
+                const style = CATEGORY_STYLES[category];
+                const selected = categoryFilter === category;
+                return (
+                  <button
+                    key={category}
+                    onClick={() => setCategoryFilter(category)}
+                    className="rounded-lg px-4 py-2 font-mono text-xs tracking-wider transition-all"
+                    style={{
+                      background: selected ? style.bg : "transparent",
+                      border: `1px solid ${selected ? style.border : "rgba(255,255,255,0.1)"}`,
+                      color: selected ? style.text : "#64748b",
+                    }}
+                  >
+                    {category.toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <p className="mb-2 font-mono text-xs tracking-widest text-slate-500">STATUS</p>
+            <div className="flex flex-wrap gap-2">
               {(["all", "open", "settled"] as const).map((value) => (
                 <button
                   key={value}
-                  onClick={() => setFilter(value)}
+                  onClick={() => setStatusFilter(value)}
                   className="rounded-lg px-4 py-2 font-mono text-xs tracking-wider transition-all"
                   style={{
-                    background: filter === value ? "rgba(107,63,160,0.3)" : "transparent",
+                    background: statusFilter === value ? "rgba(107,63,160,0.3)" : "transparent",
                     border: `1px solid ${
-                      filter === value ? "rgba(192,132,252,0.5)" : "rgba(255,255,255,0.1)"
+                      statusFilter === value ? "rgba(192,132,252,0.5)" : "rgba(255,255,255,0.1)"
                     }`,
-                    color: filter === value ? "#C084FC" : "#64748b",
+                    color: statusFilter === value ? "#C084FC" : "#64748b",
                   }}
                 >
                   {value.toUpperCase()}
@@ -226,15 +285,33 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {filtered.map((market) => (
-              <MarketCard key={market.id} {...market} />
-            ))}
-          </div>
-
-          {filtered.length === 0 ? (
+          {groupedByCategory.length === 0 ? (
             <div className="py-16 text-center font-mono text-sm text-slate-500">No markets found.</div>
-          ) : null}
+          ) : (
+            groupedByCategory.map((group) => {
+              const style = CATEGORY_STYLES[group.category];
+              return (
+                <div key={group.category} className="mb-10">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3
+                      className="font-display text-2xl tracking-widest"
+                      style={{ color: style.text }}
+                    >
+                      {group.category.toUpperCase()} MARKETS
+                    </h3>
+                    <p className="font-mono text-xs text-slate-500">
+                      {group.markets.length} market{group.markets.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {group.markets.map((market) => (
+                      <MarketCard key={market.id} {...market} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </section>
 
         <footer
@@ -249,4 +326,3 @@ export default function Home() {
     </>
   );
 }
-

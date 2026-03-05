@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
+import { CATEGORY_STYLES, type MarketCategory, type MarketStatus } from "../utils/program";
 
 interface MarketCardProps {
   id: number;
+  category: MarketCategory;
   title: string;
   description: string;
   resolutionTimestamp: Date;
-  status: "Open" | "Resolving" | "Settled" | "Cancelled";
+  status: MarketStatus;
   totalParticipants: number;
   revealedYesStake?: number;
   revealedNoStake?: number;
@@ -22,11 +24,12 @@ const STATUS_COLORS: Record<MarketCardProps["status"], { dot: string; text: stri
 };
 
 export default function MarketCard(props: MarketCardProps) {
-  const { id, title, description, resolutionTimestamp, status, totalParticipants,
+  const { id, category, title, description, resolutionTimestamp, status, totalParticipants,
           revealedYesStake, revealedNoStake, outcome } = props;
   const [hovered, setHovered] = useState(false);
 
   const col = STATUS_COLORS[status];
+  const categoryStyle = CATEGORY_STYLES[category];
 
   const total = (revealedYesStake ?? 0) + (revealedNoStake ?? 0);
   const yesP = total === 0 ? 50 : Math.round(((revealedYesStake ?? 0) / total) * 100);
@@ -59,11 +62,28 @@ export default function MarketCard(props: MarketCardProps) {
             </p>
           </div>
 
-          {/* Status badge */}
-          <div className="flex-shrink-0"
-               style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: "20px", padding: "3px 10px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse-slow" style={{ background: col.dot }} />
-            <span className="font-mono text-xs" style={{ color: col.text }}>{status.toUpperCase()}</span>
+          {/* Status + category badges */}
+          <div className="flex-shrink-0 flex flex-col items-end gap-2">
+            <div
+              style={{
+                background: categoryStyle.bg,
+                border: `1px solid ${categoryStyle.border}`,
+                borderRadius: "20px",
+                padding: "3px 10px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <span className="font-mono text-xs" style={{ color: categoryStyle.text }}>
+                {category.toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-shrink-0"
+                 style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: "20px", padding: "3px 10px", display: "flex", alignItems: "center", gap: "6px" }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse-slow" style={{ background: col.dot }} />
+              <span className="font-mono text-xs" style={{ color: col.text }}>{status.toUpperCase()}</span>
+            </div>
           </div>
         </div>
 
