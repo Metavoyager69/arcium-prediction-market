@@ -30,6 +30,9 @@ export default function Navbar() {
         <Link href="/" className="font-mono text-xs tracking-widest text-slate-400 hover:text-white transition-colors">
           MARKETS
         </Link>
+        <Link href="/portfolio" className="font-mono text-xs tracking-widest text-slate-400 hover:text-white transition-colors">
+          PORTFOLIO
+        </Link>
         <Link href="/create" className="font-mono text-xs tracking-widest text-slate-400 hover:text-white transition-colors">
           CREATE
         </Link>
