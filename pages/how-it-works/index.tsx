@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import Head from "next/head";
 import Navbar from "../../components/Navbar";
 
@@ -8,42 +8,42 @@ const STEPS = [
     title: "Market Created On-Chain",
     description:
       "A market creator deploys a new prediction market to the Solana program. The market is assigned to an Arcium MXE (Multiparty eXecution Environment) cluster that will handle all encrypted computations.",
-    arciumRole: "Cluster assignment — Arcium nodes register to handle this market's MPC jobs.",
+    arciumRole: "Cluster assignment â€” Arcium nodes register to handle this market's MPC jobs.",
   },
   {
     number: "02",
     title: "Users Encrypt Client-Side",
     description:
       "Before submitting a position, the user's browser generates a fresh ElGamal keypair, encrypts both their stake amount and YES/NO choice using the cluster's public key. The plaintext values never leave the browser.",
-    arciumRole: "Client-side encryption — Arcium SDK generates the ciphertexts locally.",
+    arciumRole: "Client-side encryption â€” Arcium SDK generates the ciphertexts locally.",
   },
   {
     number: "03",
     title: "Ciphertexts Stored On-Chain",
     description:
-      "Only the encrypted ciphertexts (C1, C2 curve points) are stored in the Solana account. Anyone inspecting the chain sees only opaque byte arrays — no amounts, no choices.",
-    arciumRole: "On-chain storage — Arcium nodes monitor the chain for new position events.",
+      "Only the encrypted ciphertexts (C1, C2 curve points) are stored in the Solana account. Anyone inspecting the chain sees only opaque byte arrays â€” no amounts, no choices.",
+    arciumRole: "On-chain storage â€” Arcium nodes monitor the chain for new position events.",
   },
   {
     number: "04",
     title: "Homomorphic Accumulation",
     description:
-      "As positions arrive, Arcium nodes homomorphically accumulate the encrypted stakes — adding ciphertexts together without decrypting them. This maintains a running encrypted tally of YES and NO stakes.",
-    arciumRole: "Off-chain MPC — Additive homomorphism over Ristretto255 ElGamal ciphertexts.",
+      "As positions arrive, Arcium nodes homomorphically accumulate the encrypted stakes â€” adding ciphertexts together without decrypting them. This maintains a running encrypted tally of YES and NO stakes.",
+    arciumRole: "Off-chain MPC â€” Additive homomorphism over Ristretto255 ElGamal ciphertexts.",
   },
   {
     number: "05",
     title: "Threshold MPC Decryption",
     description:
-      "After the resolution timestamp, anyone triggers the tally. Arcium's threshold MPC protocol requires a quorum of nodes to cooperate for decryption — no single node can learn the result alone.",
-    arciumRole: "Threshold decryption — t-of-n nodes must participate; collusion resistance built in.",
+      "After the resolution timestamp, anyone triggers the tally. Arcium's threshold MPC protocol requires a quorum of nodes to cooperate for decryption â€” no single node can learn the result alone.",
+    arciumRole: "Threshold decryption â€” t-of-n nodes must participate; collusion resistance built in.",
   },
   {
     number: "06",
     title: "Outcome Revealed & Claims Open",
     description:
       "The decrypted YES/NO totals and outcome are written on-chain. Individual position amounts are also revealed via per-position MPC decryption. Winners claim proportional payouts from the vault.",
-    arciumRole: "Result relay — Arcium relayer posts the verified decryption result on-chain.",
+    arciumRole: "Result relay â€” Arcium relayer posts the verified decryption result on-chain.",
   },
 ];
 
@@ -51,7 +51,7 @@ export default function HowItWorks() {
   return (
     <>
       <Head>
-        <title>How It Works · CipherBet</title>
+        <title>How It Works Â· Oracle Nexus</title>
       </Head>
       <Navbar />
 
@@ -63,7 +63,7 @@ export default function HowItWorks() {
               HOW IT <span className="gradient-text">WORKS</span>
             </h1>
             <p className="text-slate-400 font-body max-w-xl mx-auto leading-relaxed">
-              CipherBet combines Solana's high-throughput execution with Arcium's
+              Oracle Nexus combines Solana's high-throughput execution with Arcium's
               cryptographic privacy layer to create prediction markets where no
               participant's position is ever exposed.
             </p>
@@ -87,7 +87,7 @@ export default function HowItWorks() {
                   </p>
                   <div className="flex items-start gap-2 p-3 rounded-lg"
                        style={{ background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.12)" }}>
-                    <span style={{ color: "#22D3EE" }}>⚡</span>
+                    <span style={{ color: "#22D3EE" }}>âš¡</span>
                     <p className="font-mono text-xs text-slate-400 leading-relaxed">
                       {step.arciumRole}
                     </p>
@@ -104,11 +104,11 @@ export default function HowItWorks() {
             </h2>
             <div className="grid sm:grid-cols-2 gap-4 text-sm text-slate-400 leading-relaxed font-body">
               <div>
-                <p className="font-mono text-xs mb-1" style={{ color: "#F87171" }}>❌ Traditional markets</p>
-                <p>Public stakes create herding — participants copy popular positions rather than contributing genuine information, distorting prices.</p>
+                <p className="font-mono text-xs mb-1" style={{ color: "#F87171" }}>âŒ Traditional markets</p>
+                <p>Public stakes create herding â€” participants copy popular positions rather than contributing genuine information, distorting prices.</p>
               </div>
               <div>
-                <p className="font-mono text-xs mb-1" style={{ color: "#34D399" }}>✓ CipherBet with Arcium</p>
+                <p className="font-mono text-xs mb-1" style={{ color: "#34D399" }}>âœ“ Oracle Nexus with Arcium</p>
                 <p>Encrypted stakes force genuine belief-based positions. No one can herd on hidden information. Outcomes aggregate true wisdom of the crowd.</p>
               </div>
             </div>
@@ -119,3 +119,4 @@ export default function HowItWorks() {
     </>
   );
 }
+

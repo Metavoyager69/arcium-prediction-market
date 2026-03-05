@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -95,7 +95,7 @@ export default function MarketPage() {
   return (
     <>
       <Head>
-        <title>{market.title} | CipherBet</title>
+        <title>{market.title} | Oracle Nexus</title>
       </Head>
       <Navbar />
 
@@ -318,3 +318,4 @@ export default function MarketPage() {
     </>
   );
 }
+

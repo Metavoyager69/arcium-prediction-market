@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -25,7 +25,7 @@ export default function CreateMarket() {
   return (
     <>
       <Head>
-        <title>Create Market · CipherBet</title>
+        <title>Create Market Â· Oracle Nexus</title>
       </Head>
       <Navbar />
 
@@ -33,14 +33,14 @@ export default function CreateMarket() {
         <div className="max-w-2xl mx-auto px-6 py-12">
           <button onClick={() => router.push("/")}
                   className="font-mono text-xs text-slate-500 hover:text-white mb-8 flex items-center gap-2 transition-colors">
-            ← BACK
+            â† BACK
           </button>
 
           <h1 className="font-display text-4xl tracking-widest mb-2" style={{ color: "white" }}>
             CREATE MARKET
           </h1>
           <p className="text-slate-400 font-mono text-xs mb-8 tracking-widest">
-            ENCRYPTED BY ARCIUM · SOLANA DEVNET
+            ENCRYPTED BY ARCIUM Â· SOLANA DEVNET
           </p>
 
           {!connected ? (
@@ -55,9 +55,9 @@ export default function CreateMarket() {
             </div>
           ) : step === "done" ? (
             <div className="card p-10 text-center">
-              <div className="text-5xl mb-4">🎉</div>
+              <div className="text-5xl mb-4">ðŸŽ‰</div>
               <p className="font-mono text-sm" style={{ color: "#34D399" }}>MARKET CREATED</p>
-              <p className="text-slate-400 text-sm mt-2">Redirecting to markets…</p>
+              <p className="text-slate-400 text-sm mt-2">Redirecting to marketsâ€¦</p>
             </div>
           ) : (
             <div className="card p-6 flex flex-col gap-5">
@@ -105,7 +105,7 @@ export default function CreateMarket() {
               {/* Arcium note */}
               <div className="p-4 rounded-lg" style={{ background: "rgba(107,63,160,0.1)", border: "1px solid rgba(107,63,160,0.2)" }}>
                 <p className="font-mono text-xs text-slate-400 leading-relaxed">
-                  ⚡ This market will be assigned to the{" "}
+                  âš¡ This market will be assigned to the{" "}
                   <span style={{ color: "#C084FC" }}>Arcium devnet MXE cluster</span>.
                   All participant stakes and votes will remain encrypted until your resolution
                   date, when the cluster performs a joint decryption via threshold MPC.
@@ -118,7 +118,7 @@ export default function CreateMarket() {
                 className="btn-primary"
                 style={{ opacity: !title || !resolutionDate ? 0.5 : 1 }}
               >
-                {step === "submitting" ? "⟳ DEPLOYING ON-CHAIN…" : "🚀 CREATE MARKET"}
+                {step === "submitting" ? "âŸ³ DEPLOYING ON-CHAINâ€¦" : "ðŸš€ CREATE MARKET"}
               </button>
             </div>
           )}
@@ -127,3 +127,4 @@ export default function CreateMarket() {
     </>
   );
 }
+

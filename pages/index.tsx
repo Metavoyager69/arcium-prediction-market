@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -49,7 +49,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>CipherBet | Private Prediction Markets on Solana</title>
+        <title>Oracle Nexus | Private Prediction Markets on Solana</title>
         <meta
           name="description"
           content="Encrypted prediction markets where stakes and votes stay private until Arcium MPC settlement."
@@ -101,7 +101,7 @@ export default function Home() {
               <span className="gradient-text">WITHOUT EXPOSURE</span>
             </h1>
             <p className="mx-auto mb-8 max-w-xl text-base leading-relaxed text-slate-400">
-              CipherBet keeps stake size, vote direction, and resolution inputs encrypted until
+              Oracle Nexus keeps stake size, vote direction, and resolution inputs encrypted until
               settlement. Public outcomes, private positions.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
@@ -249,3 +249,4 @@ export default function Home() {
     </>
   );
 }
+

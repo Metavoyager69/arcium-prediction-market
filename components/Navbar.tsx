@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
@@ -16,12 +16,12 @@ export default function Navbar() {
           <div className="absolute inset-0 rounded-lg"
                style={{ background: "linear-gradient(135deg, #6B3FA0, #22D3EE)", opacity: 0.9 }} />
           <div className="absolute inset-0 flex items-center justify-center text-white font-display text-lg">
-            Ψ
+            Î¨
           </div>
         </div>
         <div>
-          <span className="font-display text-xl tracking-widest text-white">CIPHER</span>
-          <span className="font-display text-xl tracking-widest" style={{ color: "#C084FC" }}>BET</span>
+          <span className="font-display text-xl tracking-widest text-white">ORACLE</span>
+          <span className="font-display text-xl tracking-widest" style={{ color: "#C084FC" }}>NEXUS</span>
         </div>
       </Link>
 
@@ -61,3 +61,4 @@ export default function Navbar() {
     </nav>
   );
 }
+

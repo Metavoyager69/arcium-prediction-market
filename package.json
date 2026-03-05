@@ -1,5 +1,5 @@
 {
-  "name": "arcium-prediction-market-app",
+  "name": "oracle-nexus",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -34,3 +34,4 @@
     "typescript": "^5"
   }
 }
+

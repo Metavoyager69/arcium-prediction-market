@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+﻿import React, { useMemo } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -27,7 +27,7 @@ export default function PortfolioPage() {
   return (
     <>
       <Head>
-        <title>Portfolio | CipherBet</title>
+        <title>Portfolio | Oracle Nexus</title>
       </Head>
       <Navbar />
       <main style={{ minHeight: "100vh", paddingTop: "72px" }}>
@@ -135,3 +135,4 @@ export default function PortfolioPage() {
     </>
   );
 }
+

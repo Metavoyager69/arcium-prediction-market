@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # ============================================================
-#  CipherBet — Full Setup Script
+#  Oracle Nexus â€” Full Setup Script
 #  Installs all prerequisites and configures Solana + Arcium
 # ============================================================
 set -e
@@ -17,16 +17,16 @@ warn()   { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error()  { echo -e "${RED}[ERR]${NC} $1"; exit 1; }
 
 echo ""
-echo "  ╔══════════════════════════════════════════╗"
-echo "  ║   CipherBet × Arcium — Dev Setup         ║"
-echo "  ╚══════════════════════════════════════════╝"
+echo "  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—"
+echo "  â•‘   Oracle Nexus Ã— Arcium â€” Dev Setup         â•‘"
+echo "  â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
 echo ""
 
-# ── 1. Check OS ──────────────────────────────────────────────
+# â”€â”€ 1. Check OS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 OS=$(uname -s)
 log "Detected OS: $OS"
 
-# ── 2. Install Rust ──────────────────────────────────────────
+# â”€â”€ 2. Install Rust â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ! command -v rustc &> /dev/null; then
   log "Installing Rust..."
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -41,7 +41,7 @@ rustup toolchain install stable
 rustup default stable
 rustup component add rustfmt clippy
 
-# ── 3. Install Solana CLI ────────────────────────────────────
+# â”€â”€ 3. Install Solana CLI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ! command -v solana &> /dev/null; then
   log "Installing Solana CLI..."
   sh -c "$(curl -sSfL https://release.solana.com/v1.18.22/install)"
@@ -56,7 +56,7 @@ log "Configuring Solana for devnet..."
 solana config set --url https://api.devnet.solana.com
 success "Solana configured for devnet"
 
-# ── 4. Create / load wallet ──────────────────────────────────
+# â”€â”€ 4. Create / load wallet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 WALLET_PATH="$HOME/.config/solana/id.json"
 if [ ! -f "$WALLET_PATH" ]; then
   log "Generating new Solana keypair..."
@@ -70,13 +70,13 @@ fi
 PUBKEY=$(solana address)
 log "Wallet address: $PUBKEY"
 
-# ── 5. Airdrop SOL (devnet) ──────────────────────────────────
+# â”€â”€ 5. Airdrop SOL (devnet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 log "Requesting devnet SOL airdrop..."
 solana airdrop 4 || warn "Airdrop failed (faucet rate limited). Try: https://faucet.solana.com"
 BALANCE=$(solana balance | awk '{print $1}')
 success "Wallet balance: $BALANCE SOL"
 
-# ── 6. Install Anchor CLI ────────────────────────────────────
+# â”€â”€ 6. Install Anchor CLI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ! command -v anchor &> /dev/null; then
   log "Installing Anchor CLI..."
   cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
@@ -87,7 +87,7 @@ else
   success "Anchor already installed: $(anchor --version)"
 fi
 
-# ── 7. Install Node.js ───────────────────────────────────────
+# â”€â”€ 7. Install Node.js â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ! command -v node &> /dev/null; then
   log "Installing Node.js via nvm..."
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
@@ -100,26 +100,26 @@ else
   success "Node.js already installed: $(node --version)"
 fi
 
-# ── 8. Install project dependencies ─────────────────────────
+# â”€â”€ 8. Install project dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 log "Installing npm dependencies..."
 npm install
 cd app && npm install && cd ..
 success "Dependencies installed"
 
-# ── 9. Build Anchor program ──────────────────────────────────
+# â”€â”€ 9. Build Anchor program â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 log "Building Anchor program..."
 anchor build
 success "Anchor program built"
 
-# ── 10. Deploy to devnet ─────────────────────────────────────
+# â”€â”€ 10. Deploy to devnet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 log "Deploying to Solana devnet..."
-anchor deploy --provider.cluster devnet || warn "Deploy failed — check your SOL balance"
+anchor deploy --provider.cluster devnet || warn "Deploy failed â€” check your SOL balance"
 
-# ── 11. Summary ──────────────────────────────────────────────
+# â”€â”€ 11. Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
-echo "  ╔══════════════════════════════════════════╗"
-echo "  ║   ✓  Setup Complete!                     ║"
-echo "  ╚══════════════════════════════════════════╝"
+echo "  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—"
+echo "  â•‘   âœ“  Setup Complete!                     â•‘"
+echo "  â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
 echo ""
 echo "  Wallet:  $PUBKEY"
 echo "  Network: Solana Devnet"
@@ -135,3 +135,4 @@ echo "    solana balance               # check SOL balance"
 echo "    anchor test                  # run tests"
 echo "    anchor deploy               # redeploy program"
 echo ""
+
