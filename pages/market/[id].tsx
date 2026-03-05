@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -11,13 +11,22 @@ import {
   DEMO_MARKETS,
   DEMO_POSITIONS,
   calculatePositionPnl,
+  type DemoMarket,
+  type DemoPosition,
 } from "../../utils/program";
 import {
   ARCIUM_DEVNET_CLUSTER,
   encryptChoice,
   encryptStake,
   fetchClusterPublicKey,
+  serializeCiphertext,
 } from "../../utils/arcium";
+import {
+  deserializeMarket,
+  deserializePosition,
+  type ApiMarket,
+  type ApiPosition,
+} from "../../utils/api";
 
 type StepState = "idle" | "encrypting" | "submitting" | "confirmed" | "error";
 
@@ -34,41 +43,76 @@ function formatSigned(value: number): string {
 
 export default function MarketPage() {
   const router = useRouter();
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
   const [choice, setChoice] = useState<"yes" | "no" | null>(null);
   const [stakeInput, setStakeInput] = useState("");
   const [step, setStep] = useState<StepState>("idle");
   const [txSig, setTxSig] = useState<string | null>(null);
   const [encryptedPreview, setEncryptedPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [market, setMarket] = useState<DemoMarket | null>(null);
+  const [history, setHistory] = useState<DemoPosition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const marketId = typeof router.query.id === "string" ? Number(router.query.id) : NaN;
-  const market = useMemo(() => DEMO_MARKETS.find((item) => item.id === marketId), [marketId]);
-  const history = useMemo(
-    () =>
-      DEMO_POSITIONS.filter((position) => position.marketId === marketId).sort(
-        (left, right) => right.submittedAt.getTime() - left.submittedAt.getTime()
-      ),
-    [marketId]
-  );
+  const marketId = useMemo(() => {
+    if (typeof router.query.id !== "string") return Number.NaN;
+    return Number.parseInt(router.query.id, 10);
+  }, [router.query.id]);
 
-  if (!market) {
-    return (
-      <div className="flex min-h-screen items-center justify-center font-mono text-slate-500">
-        Market not found.
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!router.isReady || Number.isNaN(marketId)) return;
 
-  const isOpen = market.status === "Open";
-  const isSettled = market.status === "Settled";
-  const categoryStyle = CATEGORY_STYLES[market.category];
-  const total = (market.revealedYesStake ?? 0) + (market.revealedNoStake ?? 0);
-  const yesP = total === 0 ? 50 : Math.round(((market.revealedYesStake ?? 0) / total) * 100);
-  const noP = 100 - yesP;
+    let cancelled = false;
+
+    async function loadMarket() {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const wallet = publicKey?.toBase58();
+        const suffix = wallet ? `?wallet=${encodeURIComponent(wallet)}` : "";
+        const response = await fetch(`/api/markets/${marketId}${suffix}`);
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Could not load market.");
+        }
+
+        if (!cancelled) {
+          const marketItem = payload?.market as ApiMarket;
+          const historyItems = Array.isArray(payload?.history)
+            ? (payload.history as ApiPosition[]).map((item) => deserializePosition(item))
+            : [];
+          setMarket(deserializeMarket(marketItem));
+          setHistory(historyItems);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          const fallbackMarket = DEMO_MARKETS.find((item) => item.id === marketId) ?? null;
+          const fallbackHistory = DEMO_POSITIONS.filter((item) => item.marketId === marketId).sort(
+            (left, right) => right.submittedAt.getTime() - left.submittedAt.getTime()
+          );
+          setMarket(fallbackMarket);
+          setHistory(fallbackHistory);
+          const message = caught instanceof Error ? caught.message : "Unknown API error.";
+          setLoadError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadMarket();
+    return () => {
+      cancelled = true;
+    };
+  }, [marketId, publicKey, router.isReady]);
 
   async function handleSubmit() {
-    if (!choice || !connected) return;
+    if (!market || !choice || !connected) return;
     const stakeSOL = Number.parseFloat(stakeInput);
     if (Number.isNaN(stakeSOL) || stakeSOL <= 0) return;
 
@@ -86,10 +130,33 @@ export default function MarketPage() {
       setEncryptedPreview(preview);
 
       setStep("submitting");
-      await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      const fakeSig = toHex(crypto.getRandomValues(new Uint8Array(32))).slice(0, 64);
-      setTxSig(fakeSig);
+      const response = await fetch("/api/positions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketId: market.id,
+          side: choice.toUpperCase(),
+          stakeSol: stakeSOL,
+          wallet: publicKey?.toBase58(),
+          encryptedStake: serializeCiphertext(encStake),
+          encryptedChoice: serializeCiphertext(encChoice),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Could not submit encrypted position.");
+      }
+
+      const newPosition = deserializePosition(payload.position as ApiPosition);
+      setHistory((current) =>
+        [newPosition, ...current].sort((left, right) => right.submittedAt.getTime() - left.submittedAt.getTime())
+      );
+      setMarket((current) =>
+        current ? { ...current, totalParticipants: current.totalParticipants + 1 } : current
+      );
+
+      setTxSig(typeof payload?.txSig === "string" ? payload.txSig : null);
       setStep("confirmed");
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Unknown error";
@@ -97,6 +164,29 @@ export default function MarketPage() {
       setStep("error");
     }
   }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center font-mono text-slate-500">
+        Loading market...
+      </div>
+    );
+  }
+
+  if (!market) {
+    return (
+      <div className="flex min-h-screen items-center justify-center font-mono text-slate-500">
+        Market not found.
+      </div>
+    );
+  }
+
+  const isOpen = market.status === "Open";
+  const isSettled = market.status === "Settled";
+  const categoryStyle = CATEGORY_STYLES[market.category];
+  const total = (market.revealedYesStake ?? 0) + (market.revealedNoStake ?? 0);
+  const yesP = total === 0 ? 50 : Math.round(((market.revealedYesStake ?? 0) / total) * 100);
+  const noP = 100 - yesP;
 
   return (
     <>
@@ -114,6 +204,12 @@ export default function MarketPage() {
             >
               {"<"} ALL MARKETS
             </button>
+
+            {loadError ? (
+              <p className="mb-4 font-mono text-xs text-amber-300">
+                Backend unavailable, showing fallback data: {loadError}
+              </p>
+            ) : null}
 
             <div className="card mb-6 p-6">
               <div className="mb-4 flex items-start justify-between gap-4">
@@ -150,25 +246,29 @@ export default function MarketPage() {
             <div className="card mb-6 p-6">
               <h2 className="mb-4 font-mono text-xs tracking-widest text-violet-300">RESOLUTION TIMELINE</h2>
               <div className="space-y-4">
-                {market.timeline.map((step) => (
-                  <div key={step.id} className="flex items-start gap-3">
+                {market.timeline.map((timelineStep) => (
+                  <div key={timelineStep.id} className="flex items-start gap-3">
                     <span
                       className="mt-1 inline-block h-2.5 w-2.5 rounded-full"
                       style={{
                         background:
-                          step.status === "completed"
+                          timelineStep.status === "completed"
                             ? "#34D399"
-                            : step.status === "active"
+                            : timelineStep.status === "active"
                               ? "#C084FC"
                               : "#64748B",
                       }}
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-mono text-xs tracking-wider text-white">{step.label.toUpperCase()}</p>
-                        <p className="font-mono text-xs text-slate-500">{format(step.timestamp, "MMM d, yyyy")}</p>
+                        <p className="font-mono text-xs tracking-wider text-white">
+                          {timelineStep.label.toUpperCase()}
+                        </p>
+                        <p className="font-mono text-xs text-slate-500">
+                          {format(timelineStep.timestamp, "MMM d, yyyy")}
+                        </p>
                       </div>
-                      <p className="mt-1 text-sm text-slate-400">{step.note}</p>
+                      <p className="mt-1 text-sm text-slate-400">{timelineStep.note}</p>
                     </div>
                   </div>
                 ))}
@@ -217,10 +317,7 @@ export default function MarketPage() {
                             {format(position.submittedAt, "MMM d, yyyy")}
                           </span>
                         </div>
-                        <span
-                          className="font-mono text-xs"
-                          style={{ color: pnl >= 0 ? "#34D399" : "#F87171" }}
-                        >
+                        <span className="font-mono text-xs" style={{ color: pnl >= 0 ? "#34D399" : "#F87171" }}>
                           {formatSigned(pnl)}
                         </span>
                       </div>
@@ -338,4 +435,3 @@ export default function MarketPage() {
     </>
   );
 }
-

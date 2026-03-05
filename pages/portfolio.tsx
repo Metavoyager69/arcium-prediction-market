@@ -1,13 +1,16 @@
-﻿import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { format } from "date-fns";
+import { useWallet } from "@solana/wallet-adapter-react";
 import Navbar from "../components/Navbar";
 import {
   DEMO_POSITIONS,
   calculatePositionPnl,
   getPortfolioSummary,
+  type DemoPosition,
 } from "../utils/program";
+import { deserializePosition, type ApiPosition } from "../utils/api";
 
 function formatSigned(value: number): string {
   const rounded = Math.abs(value).toFixed(2);
@@ -15,13 +18,60 @@ function formatSigned(value: number): string {
 }
 
 export default function PortfolioPage() {
-  const summary = useMemo(() => getPortfolioSummary(DEMO_POSITIONS), []);
+  const { publicKey } = useWallet();
+  const wallet = publicKey?.toBase58() ?? "demo_wallet";
+
+  const [positions, setPositions] = useState<DemoPosition[]>(DEMO_POSITIONS);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPortfolio() {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const response = await fetch(`/api/portfolio?wallet=${encodeURIComponent(wallet)}`);
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Could not load portfolio.");
+        }
+
+        const items = Array.isArray(payload?.positions)
+          ? (payload.positions as ApiPosition[]).map((item) => deserializePosition(item))
+          : [];
+
+        if (!cancelled) {
+          setPositions(items);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          const message = caught instanceof Error ? caught.message : "Unknown API error.";
+          setLoadError(message);
+          setPositions(DEMO_POSITIONS);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadPortfolio();
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet]);
+
+  const summary = useMemo(() => getPortfolioSummary(positions), [positions]);
   const sorted = useMemo(
     () =>
-      [...DEMO_POSITIONS].sort(
+      [...positions].sort(
         (left, right) => right.submittedAt.getTime() - left.submittedAt.getTime()
       ),
-    []
+    [positions]
   );
 
   return (
@@ -42,6 +92,16 @@ export default function PortfolioPage() {
             <Link href="/" className="btn-secondary">
               BACK TO MARKETS
             </Link>
+          </div>
+
+          <div className="mb-4 flex items-center justify-between">
+            {loading ? (
+              <p className="font-mono text-xs text-slate-500">Loading portfolio from backend...</p>
+            ) : loadError ? (
+              <p className="font-mono text-xs text-amber-300">Using fallback data: {loadError}</p>
+            ) : (
+              <p className="font-mono text-xs text-emerald-300">Live backend data loaded</p>
+            )}
           </div>
 
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -118,11 +178,10 @@ export default function PortfolioPage() {
                     <span className="font-mono text-slate-300">{position.stakeSol.toFixed(2)} SOL</span>
                     <span className="font-mono text-slate-300">{(position.entryOdds * 100).toFixed(1)}%</span>
                     <span className="font-mono text-slate-300">{(position.markOdds * 100).toFixed(1)}%</span>
-                    <span className="font-mono text-slate-300">{format(position.submittedAt, "MMM d, yyyy")}</span>
-                    <span
-                      className="font-mono"
-                      style={{ color: pnl >= 0 ? "#34D399" : "#F87171" }}
-                    >
+                    <span className="font-mono text-slate-300">
+                      {format(position.submittedAt, "MMM d, yyyy")}
+                    </span>
+                    <span className="font-mono" style={{ color: pnl >= 0 ? "#34D399" : "#F87171" }}>
                       {formatSigned(pnl)}
                     </span>
                   </Link>
@@ -135,4 +194,3 @@ export default function PortfolioPage() {
     </>
   );
 }
-

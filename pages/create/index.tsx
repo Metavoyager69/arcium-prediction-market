@@ -1,124 +1,213 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Navbar from "../../components/Navbar";
+import { MARKET_CATEGORIES, type MarketCategory } from "../../utils/program";
 
 export default function CreateMarket() {
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
   const router = useRouter();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<MarketCategory>("Crypto");
   const [resolutionDate, setResolutionDate] = useState("");
-  const [step, setStep] = useState<"idle" | "submitting" | "done">("idle");
+  const [resolutionSource, setResolutionSource] = useState("");
+  const [rulesInput, setRulesInput] = useState("");
+  const [step, setStep] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
 
   async function handleCreate() {
-    if (!title || !resolutionDate) return;
+    if (!title || !description || !resolutionDate || !resolutionSource) return;
+
+    setError(null);
     setStep("submitting");
-    await new Promise((r) => setTimeout(r, 1500));
-    setStep("done");
-    setTimeout(() => router.push("/"), 2000);
+
+    const rules = rulesInput
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    try {
+      const response = await fetch("/api/markets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description,
+          category,
+          resolutionTimestamp: new Date(`${resolutionDate}T00:00:00.000Z`).toISOString(),
+          resolutionSource,
+          rules,
+          creatorWallet: publicKey?.toBase58(),
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Could not create market.");
+      }
+
+      setStep("done");
+      const marketId = payload?.market?.id;
+      setTimeout(() => {
+        router.push(typeof marketId === "number" ? `/market/${marketId}` : "/");
+      }, 1200);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Unknown error";
+      setError(message);
+      setStep("error");
+    }
   }
+
+  const canSubmit =
+    title.trim().length > 0 &&
+    description.trim().length > 0 &&
+    resolutionDate.trim().length > 0 &&
+    resolutionSource.trim().length > 0;
 
   return (
     <>
       <Head>
-        <title>Create Market Â· Oracle Nexus</title>
+        <title>Create Market | Oracle Nexus</title>
       </Head>
       <Navbar />
 
       <main style={{ minHeight: "100vh", paddingTop: "72px" }}>
-        <div className="max-w-2xl mx-auto px-6 py-12">
-          <button onClick={() => router.push("/")}
-                  className="font-mono text-xs text-slate-500 hover:text-white mb-8 flex items-center gap-2 transition-colors">
-            â† BACK
+        <div className="mx-auto max-w-2xl px-6 py-12">
+          <button
+            onClick={() => router.push("/")}
+            className="mb-8 flex items-center gap-2 font-mono text-xs text-slate-500 transition-colors hover:text-white"
+          >
+            {"<"} BACK
           </button>
 
-          <h1 className="font-display text-4xl tracking-widest mb-2" style={{ color: "white" }}>
-            CREATE MARKET
-          </h1>
-          <p className="text-slate-400 font-mono text-xs mb-8 tracking-widest">
-            ENCRYPTED BY ARCIUM Â· SOLANA DEVNET
+          <h1 className="mb-2 font-display text-4xl tracking-widest text-white">CREATE MARKET</h1>
+          <p className="mb-8 font-mono text-xs tracking-widest text-slate-400">
+            PRIVATE RESOLUTION CRITERIA WITH ARCIUM MPC
           </p>
 
           {!connected ? (
             <div className="card p-10 text-center">
-              <p className="text-slate-400 font-body mb-4">Connect wallet to create a market.</p>
-              <WalletMultiButton style={{
-                background: "linear-gradient(135deg, #6B3FA0, #9B6FD0)",
-                borderRadius: "8px",
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: "12px",
-              }} />
+              <p className="mb-4 font-body text-slate-400">Connect wallet to create a market.</p>
+              <WalletMultiButton
+                style={{
+                  background: "linear-gradient(135deg, #6B3FA0, #9B6FD0)",
+                  borderRadius: "8px",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "12px",
+                }}
+              />
             </div>
           ) : step === "done" ? (
             <div className="card p-10 text-center">
-              <div className="text-5xl mb-4">ðŸŽ‰</div>
-              <p className="font-mono text-sm" style={{ color: "#34D399" }}>MARKET CREATED</p>
-              <p className="text-slate-400 text-sm mt-2">Redirecting to marketsâ€¦</p>
+              <p className="font-mono text-sm text-emerald-400">MARKET CREATED</p>
+              <p className="mt-2 text-sm text-slate-400">Redirecting to market page...</p>
             </div>
           ) : (
-            <div className="card p-6 flex flex-col gap-5">
-              {/* Title */}
+            <div className="card flex flex-col gap-5 p-6">
               <div>
-                <label className="font-mono text-xs text-slate-500 mb-2 block">QUESTION / TITLE</label>
+                <label className="mb-2 block font-mono text-xs text-slate-500">QUESTION / TITLE</label>
                 <input
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Will BTC exceed $200k before 2026?"
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Will BTC exceed $150k before Jan 2027?"
                   maxLength={128}
-                  className="w-full bg-transparent font-body text-sm text-white outline-none"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "12px 16px" }}
+                  className="w-full bg-transparent px-4 py-3 font-body text-sm text-white outline-none"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                  }}
                 />
-                <p className="text-xs text-slate-600 mt-1 font-mono">{title.length}/128</p>
+                <p className="mt-1 font-mono text-xs text-slate-600">{title.length}/128</p>
               </div>
 
-              {/* Description */}
               <div>
-                <label className="font-mono text-xs text-slate-500 mb-2 block">RESOLUTION CRITERIA</label>
+                <label className="mb-2 block font-mono text-xs text-slate-500">CATEGORY</label>
+                <select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value as MarketCategory)}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white outline-none"
+                >
+                  {MARKET_CATEGORIES.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block font-mono text-xs text-slate-500">RESOLUTION CRITERIA</label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe exactly how this market resolves. Include the data source."
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Describe exact resolve conditions for YES and NO."
                   rows={4}
                   maxLength={512}
-                  className="w-full font-body text-sm text-white outline-none resize-none"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "12px 16px" }}
+                  className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-body text-sm text-white outline-none"
                 />
-                <p className="text-xs text-slate-600 mt-1 font-mono">{description.length}/512</p>
+                <p className="mt-1 font-mono text-xs text-slate-600">{description.length}/512</p>
               </div>
 
-              {/* Resolution date */}
               <div>
-                <label className="font-mono text-xs text-slate-500 mb-2 block">RESOLUTION DATE</label>
+                <label className="mb-2 block font-mono text-xs text-slate-500">RESOLUTION SOURCE</label>
+                <input
+                  value={resolutionSource}
+                  onChange={(event) => setResolutionSource(event.target.value)}
+                  maxLength={160}
+                  placeholder="Data source, e.g. Binance API, Senate roll call, EPL final table"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-body text-sm text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block font-mono text-xs text-slate-500">RULES (OPTIONAL)</label>
+                <textarea
+                  value={rulesInput}
+                  onChange={(event) => setRulesInput(event.target.value)}
+                  placeholder="One rule per line."
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-body text-sm text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block font-mono text-xs text-slate-500">RESOLUTION DATE</label>
                 <input
                   type="date"
                   value={resolutionDate}
-                  onChange={(e) => setResolutionDate(e.target.value)}
-                  className="w-full font-mono text-sm text-white outline-none"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "12px 16px", colorScheme: "dark" }}
+                  onChange={(event) => setResolutionDate(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white outline-none"
+                  style={{ colorScheme: "dark" }}
                 />
               </div>
 
-              {/* Arcium note */}
-              <div className="p-4 rounded-lg" style={{ background: "rgba(107,63,160,0.1)", border: "1px solid rgba(107,63,160,0.2)" }}>
-                <p className="font-mono text-xs text-slate-400 leading-relaxed">
-                  âš¡ This market will be assigned to the{" "}
-                  <span style={{ color: "#C084FC" }}>Arcium devnet MXE cluster</span>.
-                  All participant stakes and votes will remain encrypted until your resolution
-                  date, when the cluster performs a joint decryption via threshold MPC.
+              <div
+                className="rounded-lg p-4"
+                style={{
+                  background: "rgba(107,63,160,0.1)",
+                  border: "1px solid rgba(107,63,160,0.2)",
+                }}
+              >
+                <p className="font-mono text-xs leading-relaxed text-slate-400">
+                  This market is assigned to the Arcium cluster. Stake size and direction remain
+                  encrypted until settlement.
                 </p>
               </div>
 
+              {error ? <p className="font-mono text-xs text-rose-400">{error}</p> : null}
+
               <button
                 onClick={handleCreate}
-                disabled={!title || !resolutionDate || step === "submitting"}
+                disabled={!canSubmit || step === "submitting"}
                 className="btn-primary"
-                style={{ opacity: !title || !resolutionDate ? 0.5 : 1 }}
+                style={{ opacity: !canSubmit ? 0.5 : 1 }}
               >
-                {step === "submitting" ? "âŸ³ DEPLOYING ON-CHAINâ€¦" : "ðŸš€ CREATE MARKET"}
+                {step === "submitting" ? "CREATING..." : "CREATE MARKET"}
               </button>
             </div>
           )}
@@ -127,4 +216,3 @@ export default function CreateMarket() {
     </>
   );
 }
-

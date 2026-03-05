@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { useWallet } from "@solana/wallet-adapter-react";
 import Navbar from "../components/Navbar";
 import MarketCard from "../components/MarketCard";
 import {
@@ -11,8 +12,16 @@ import {
   MARKET_CATEGORIES,
   calculatePositionPnl,
   getPortfolioSummary,
+  type DemoMarket,
+  type DemoPosition,
   type MarketCategory,
 } from "../utils/program";
+import {
+  deserializeMarket,
+  deserializePosition,
+  type ApiMarket,
+  type ApiPosition,
+} from "../utils/api";
 
 const TICKER_ITEMS = [
   "STAKES ENCRYPTED | ARCIUM MPC",
@@ -31,18 +40,79 @@ type StatusFilter = "all" | "open" | "settled";
 type CategoryFilter = "all" | MarketCategory;
 
 export default function Home() {
+  const { publicKey } = useWallet();
+  const wallet = publicKey?.toBase58() ?? "demo_wallet";
+
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [markets, setMarkets] = useState<DemoMarket[]>(DEMO_MARKETS);
+  const [positions, setPositions] = useState<DemoPosition[]>(DEMO_POSITIONS);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFromApi() {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const [marketsResponse, portfolioResponse] = await Promise.all([
+          fetch("/api/markets"),
+          fetch(`/api/portfolio?wallet=${encodeURIComponent(wallet)}`),
+        ]);
+
+        const marketsPayload = await marketsResponse.json();
+        const portfolioPayload = await portfolioResponse.json();
+
+        if (!marketsResponse.ok) {
+          throw new Error(marketsPayload?.error ?? "Could not load markets.");
+        }
+        if (!portfolioResponse.ok) {
+          throw new Error(portfolioPayload?.error ?? "Could not load portfolio.");
+        }
+
+        if (!cancelled) {
+          const marketItems = Array.isArray(marketsPayload?.markets)
+            ? (marketsPayload.markets as ApiMarket[]).map((item) => deserializeMarket(item))
+            : DEMO_MARKETS;
+          const positionItems = Array.isArray(portfolioPayload?.positions)
+            ? (portfolioPayload.positions as ApiPosition[]).map((item) => deserializePosition(item))
+            : DEMO_POSITIONS;
+
+          setMarkets(marketItems);
+          setPositions(positionItems);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          const message = caught instanceof Error ? caught.message : "Unknown API error.";
+          setLoadError(message);
+          setMarkets(DEMO_MARKETS);
+          setPositions(DEMO_POSITIONS);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadFromApi();
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet]);
 
   const filtered = useMemo(
     () =>
-      DEMO_MARKETS.filter((market) => {
+      markets.filter((market) => {
         if (statusFilter === "open" && market.status !== "Open") return false;
         if (statusFilter === "settled" && market.status !== "Settled") return false;
         if (categoryFilter !== "all" && market.category !== categoryFilter) return false;
         return true;
       }),
-    [statusFilter, categoryFilter]
+    [markets, statusFilter, categoryFilter]
   );
 
   const groupedByCategory = useMemo(() => {
@@ -55,13 +125,13 @@ export default function Home() {
     })).filter((group) => group.markets.length > 0);
   }, [filtered, categoryFilter]);
 
-  const summary = useMemo(() => getPortfolioSummary(DEMO_POSITIONS), []);
+  const summary = useMemo(() => getPortfolioSummary(positions), [positions]);
   const recentPositions = useMemo(
     () =>
-      [...DEMO_POSITIONS]
+      [...positions]
         .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
         .slice(0, 4),
-    []
+    [positions]
   );
 
   return (
@@ -208,10 +278,7 @@ export default function Home() {
                     </span>
                     <span className="font-mono text-slate-300">{position.stakeSol.toFixed(2)} SOL</span>
                     <span className="font-mono text-slate-300">{position.status.toUpperCase()}</span>
-                    <span
-                      className="font-mono"
-                      style={{ color: pnl >= 0 ? "#34D399" : "#F87171" }}
-                    >
+                    <span className="font-mono" style={{ color: pnl >= 0 ? "#34D399" : "#F87171" }}>
                       {formatSigned(pnl)}
                     </span>
                   </Link>
@@ -222,8 +289,15 @@ export default function Home() {
         </section>
 
         <section id="markets" className="mx-auto max-w-5xl px-6 pb-20">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-4">
             <h2 className="font-display text-3xl tracking-widest text-white">MARKET CATEGORIES</h2>
+            {loading ? (
+              <p className="font-mono text-xs text-slate-500">Loading API data...</p>
+            ) : loadError ? (
+              <p className="font-mono text-xs text-amber-300">Using fallback demo data: {loadError}</p>
+            ) : (
+              <p className="font-mono text-xs text-emerald-300">Live backend data loaded</p>
+            )}
           </div>
 
           <div className="mb-4">
@@ -293,10 +367,7 @@ export default function Home() {
               return (
                 <div key={group.category} className="mb-10">
                   <div className="mb-4 flex items-center justify-between">
-                    <h3
-                      className="font-display text-2xl tracking-widest"
-                      style={{ color: style.text }}
-                    >
+                    <h3 className="font-display text-2xl tracking-widest" style={{ color: style.text }}>
                       {group.category.toUpperCase()} MARKETS
                     </h3>
                     <p className="font-mono text-xs text-slate-500">
@@ -319,7 +390,7 @@ export default function Home() {
           style={{ borderColor: "rgba(255,255,255,0.06)" }}
         >
           <p className="font-mono text-xs tracking-widest text-slate-600">
-            Last updated {formatDistanceToNow(new Date("2026-03-05T00:00:00Z"), { addSuffix: true })}
+            Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
           </p>
         </footer>
       </main>
