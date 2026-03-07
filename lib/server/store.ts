@@ -292,8 +292,8 @@ export class OracleStore {
     this.indexer.consumeEvent({
       marketId: input.marketId,
       type: "DISPUTE_OPENED",
-      actor: input.submittedBy,
-      details: `Dispute opened (${dispute.challengeWindow.deadlineAt.toISOString()} deadline): ${trimText(input.reason, 80)}`,
+      actor: "private-participant",
+      details: `Dispute opened. Challenge deadline ${dispute.challengeWindow.deadlineAt.toISOString()}.`,
       timestamp: dispute.createdAt,
     });
 
@@ -305,8 +305,8 @@ export class OracleStore {
     this.indexer.consumeEvent({
       marketId: dispute.marketId,
       type: "DISPUTE_EVIDENCE_ADDED",
-      actor: input.submittedBy,
-      details: `Evidence added: ${trimText(input.summary, 80)}`,
+      actor: "private-participant",
+      details: "Settlement evidence submitted.",
     });
 
     return dispute;
@@ -317,8 +317,8 @@ export class OracleStore {
     this.indexer.consumeEvent({
       marketId: dispute.marketId,
       type: "DISPUTE_RESOLVED",
-      actor: input.resolvedBy,
-      details: `${input.outcome} - ${trimText(input.resolutionNote, 90)}`,
+      actor: "private-resolver",
+      details: `${input.outcome} resolution recorded.`,
       timestamp: dispute.resolution?.resolvedAt,
     });
 
@@ -326,8 +326,8 @@ export class OracleStore {
       this.indexer.consumeEvent({
         marketId: dispute.marketId,
         type: "DISPUTE_SLASHED",
-        actor: input.resolvedBy,
-        details: `Slash ${dispute.slashing.slashBps} bps (${dispute.slashing.slashAmountSol.toFixed(4)} SOL) applied to ${dispute.slashing.slashedResolver}`,
+        actor: "private-resolver",
+        details: `Resolver slash executed (${dispute.slashing.slashBps} bps).`,
         timestamp: dispute.slashing.appliedAt,
       });
     }
@@ -341,7 +341,7 @@ export class OracleStore {
         this.indexer.consumeEvent({
           marketId: market.id,
           type: "MARKET_STATUS_CHANGED",
-          actor: input.resolvedBy,
+          actor: "private-resolver",
           details: `Status changed: ${previousStatus} -> ${market.status}`,
         });
       }
@@ -576,11 +576,6 @@ export function normalizeWallet(wallet: string | string[] | undefined): string {
 function truncateWallet(wallet: string): string {
   if (wallet === DEMO_WALLET) return "demo wallet";
   return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
-}
-
-function trimText(value: string, limit: number): string {
-  if (value.length <= limit) return value;
-  return `${value.slice(0, limit - 3)}...`;
 }
 
 function clamp(value: number, min: number, max: number): number {
