@@ -275,13 +275,25 @@ export class OracleStore {
     if (!market) {
       throw new Error("Market not found.");
     }
+    if (market.status === "Cancelled") {
+      throw new Error("Cancelled markets do not accept new disputes.");
+    }
 
-    const dispute = this.disputeEngine.openDispute(input);
+    const settlementStakeAtRiskSol = this.positions
+      .filter((position) => position.marketId === input.marketId)
+      .reduce((sum, position) => sum + position.stakeSol, 0);
+
+    const dispute = this.disputeEngine.openDispute({
+      ...input,
+      contestedResolver: "oracle-mpc-relayer",
+      challengeWindowHours: 24,
+      settlementStakeAtRiskSol,
+    });
     this.indexer.consumeEvent({
       marketId: input.marketId,
       type: "DISPUTE_OPENED",
       actor: input.submittedBy,
-      details: `Dispute opened: ${trimText(input.reason, 80)}`,
+      details: `Dispute opened (${dispute.challengeWindow.deadlineAt.toISOString()} deadline): ${trimText(input.reason, 80)}`,
       timestamp: dispute.createdAt,
     });
 
@@ -309,6 +321,16 @@ export class OracleStore {
       details: `${input.outcome} - ${trimText(input.resolutionNote, 90)}`,
       timestamp: dispute.resolution?.resolvedAt,
     });
+
+    if (dispute.slashing) {
+      this.indexer.consumeEvent({
+        marketId: dispute.marketId,
+        type: "DISPUTE_SLASHED",
+        actor: input.resolvedBy,
+        details: `Slash ${dispute.slashing.slashBps} bps (${dispute.slashing.slashAmountSol.toFixed(4)} SOL) applied to ${dispute.slashing.slashedResolver}`,
+        timestamp: dispute.slashing.appliedAt,
+      });
+    }
 
     const market = this.markets.find((item) => item.id === dispute.marketId);
     if (market) {
@@ -340,18 +362,58 @@ export class OracleStore {
   }
 
   private applyDisputeOutcomeToMarket(market: DemoMarket, outcome: DisputeOutcome) {
+    const now = new Date();
     if (outcome === "MarketInvalid") {
       market.status = "Invalid";
       market.outcome = undefined;
+      market.timeline = [
+        ...market.timeline.map((step) => ({
+          ...step,
+          status: step.status === "active" ? "completed" : step.status,
+        })),
+        {
+          id: `m${market.id}_invalid_${now.getTime()}`,
+          label: "Invalid market path",
+          note: "Settlement challenge accepted. Market marked INVALID and position refunds unlocked.",
+          timestamp: now,
+          status: "completed",
+        },
+      ];
       return;
     }
     if (outcome === "MarketCancelled") {
       market.status = "Cancelled";
       market.outcome = undefined;
+      market.timeline = [
+        ...market.timeline.map((step) => ({
+          ...step,
+          status: step.status === "active" ? "completed" : step.status,
+        })),
+        {
+          id: `m${market.id}_cancelled_${now.getTime()}`,
+          label: "Market cancelled",
+          note: "Settlement challenge accepted. Market cancelled and positions eligible for refunds.",
+          timestamp: now,
+          status: "completed",
+        },
+      ];
       return;
     }
     if (outcome === "SettlementUpheld" && market.status === "Invalid") {
       market.status = "Settled";
+      market.timeline = [
+        ...market.timeline.map((step) => ({
+          ...step,
+          status: step.status === "active" ? "completed" : step.status,
+        })),
+        {
+          id: `m${market.id}_upheld_${now.getTime()}`,
+          label: "Settlement upheld",
+          note: "Challenge rejected. Market status returned to settled.",
+          timestamp: now,
+          status: "completed",
+        },
+      ];
     }
   }
 
