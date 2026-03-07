@@ -46,6 +46,10 @@ export interface ApiDisputeEvidence {
   submittedBy: string;
   summary: string;
   uri?: string;
+  sourceType: string;
+  sourceDomain?: string;
+  evidenceHash: string;
+  verificationStatus: string;
   createdAt: string;
 }
 
