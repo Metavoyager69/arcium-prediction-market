@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 
 const DEFAULT_CHALLENGE_WINDOW_HOURS = 24;
 const DEFAULT_SLASH_BPS = 500;
@@ -8,6 +8,13 @@ const MAX_STAKE_AT_RISK_SOL = 1_000_000;
 
 export type DisputeStatus = "Open" | "Resolved" | "Rejected" | "Expired";
 export type DisputeOutcome = "MarketInvalid" | "SettlementUpheld" | "MarketCancelled";
+export type EvidenceSourceType =
+  | "OfficialRecord"
+  | "MarketDataAPI"
+  | "NewsArticle"
+  | "OnChainEvent"
+  | "Other";
+export type EvidenceVerificationStatus = "Pending" | "Verified" | "Rejected";
 export type InvalidMarketReasonCode =
   | "INSUFFICIENT_RESOLUTION_DATA"
   | "AMBIGUOUS_MARKET_RULES"
@@ -20,6 +27,10 @@ export interface DisputeEvidenceRecord {
   submittedBy: string;
   summary: string;
   uri?: string;
+  sourceType: EvidenceSourceType;
+  sourceDomain?: string;
+  evidenceHash: string;
+  verificationStatus: EvidenceVerificationStatus;
   createdAt: Date;
 }
 
@@ -78,6 +89,8 @@ export interface OpenDisputeInput {
   challengeWindowHours?: number;
   evidenceSummary?: string;
   evidenceUri?: string;
+  evidenceSourceType?: EvidenceSourceType;
+  evidenceSourceDomain?: string;
   now?: Date;
 }
 
@@ -86,6 +99,8 @@ export interface AddEvidenceInput {
   submittedBy: string;
   summary: string;
   uri?: string;
+  sourceType?: EvidenceSourceType;
+  sourceDomain?: string;
 }
 
 export interface ResolveDisputeInput {
@@ -148,11 +163,16 @@ export class SettlementDisputeEngine {
     };
 
     if (input.evidenceSummary) {
+      const sourceDomain = normalizeSourceDomain(input.evidenceUri, input.evidenceSourceDomain);
       dispute.evidence.push({
         id: randomId("ev"),
         submittedBy: input.submittedBy,
         summary: input.evidenceSummary,
         uri: input.evidenceUri,
+        sourceType: input.evidenceSourceType ?? "Other",
+        sourceDomain,
+        evidenceHash: evidenceHashFor(input.evidenceSummary, input.evidenceUri, now),
+        verificationStatus: deriveVerificationStatus(input.evidenceUri, sourceDomain),
         createdAt: now,
       });
     }
@@ -170,14 +190,20 @@ export class SettlementDisputeEngine {
       throw new Error("Dispute is no longer open.");
     }
 
+    const now = new Date();
+    const sourceDomain = normalizeSourceDomain(input.uri, input.sourceDomain);
     dispute.evidence.push({
       id: randomId("ev"),
       submittedBy: input.submittedBy,
       summary: input.summary,
       uri: input.uri,
-      createdAt: new Date(),
+      sourceType: input.sourceType ?? "Other",
+      sourceDomain,
+      evidenceHash: evidenceHashFor(input.summary, input.uri, now),
+      verificationStatus: deriveVerificationStatus(input.uri, sourceDomain),
+      createdAt: now,
     });
-    dispute.updatedAt = new Date();
+    dispute.updatedAt = now;
 
     return cloneDispute(dispute);
   }
@@ -305,4 +331,37 @@ function clampNumber(value: number, min: number, max: number): number {
 
 function roundToSix(value: number): number {
   return Number(value.toFixed(6));
+}
+
+function evidenceHashFor(summary: string, uri: string | undefined, createdAt: Date): string {
+  return createHash("sha256")
+    .update(summary.trim().toLowerCase())
+    .update("|")
+    .update((uri ?? "").trim().toLowerCase())
+    .update("|")
+    .update(createdAt.toISOString())
+    .digest("hex");
+}
+
+function normalizeSourceDomain(uri: string | undefined, sourceDomain: string | undefined): string | undefined {
+  if (sourceDomain?.trim()) return sourceDomain.trim().toLowerCase();
+  if (!uri) return undefined;
+  try {
+    const parsed = new URL(uri);
+    return parsed.hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+function deriveVerificationStatus(
+  uri: string | undefined,
+  sourceDomain: string | undefined
+): EvidenceVerificationStatus {
+  if (!uri) return "Pending";
+  const isHttps = /^https:\/\//i.test(uri);
+  if (!isHttps) return "Rejected";
+  if (!sourceDomain) return "Pending";
+  if (sourceDomain === "example.com") return "Rejected";
+  return "Verified";
 }
