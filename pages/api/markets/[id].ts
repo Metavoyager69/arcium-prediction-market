@@ -28,10 +28,13 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   const walletScope = req.query.wallet ? normalizeWallet(req.query.wallet) : undefined;
-  const history = store
-    .listPositions({ marketId: id, wallet: walletScope })
-    .slice(0, 50)
-    .map((position) => serializePosition(position));
+  const hasWalletScope = Boolean(walletScope && walletScope !== "demo_wallet");
+  const history = hasWalletScope
+    ? store
+        .listPositions({ marketId: id, wallet: walletScope })
+        .slice(0, 50)
+        .map((position) => serializePosition(position))
+    : [];
 
   const probabilityHistory = store.getMarketProbabilityHistory(id, 96).map((point) => ({
     ...point,
@@ -77,6 +80,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   res.status(200).json({
     market: serializeMarket(market),
     history,
+    historyScope: hasWalletScope ? "wallet" : "wallet_required",
     probabilityHistory,
     activity,
     disputes,
