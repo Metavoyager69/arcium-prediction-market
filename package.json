@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "indexer:worker": "node scripts/solana-indexer-worker.mjs"
+    "indexer:worker": "node scripts/solana-indexer-worker.mjs",
+    "test:unit": "node --experimental-strip-types --test --test-isolation=none tests/backend/unit/**/*.test.ts",
+    "test:integration": "node --experimental-strip-types --test --test-isolation=none tests/backend/integration/**/*.test.ts",
+    "test:adversarial": "node --experimental-strip-types --test --test-isolation=none tests/backend/adversarial/**/*.test.ts",
+    "test:matrix": "npm run test:unit && npm run test:integration && npm run test:adversarial",
+    "audit:backend": "npm audit --omit=dev --audit-level=moderate"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
