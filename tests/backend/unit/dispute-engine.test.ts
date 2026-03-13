@@ -112,13 +112,15 @@ test("unit: evidence records include hash, source metadata, and verification sta
   assert.equal(evidence.verificationStatus, "Verified");
   assert.equal(evidence.evidenceHash.length, 64);
 
-  const updated = engine.addEvidence({
-    disputeId: opened.id,
-    submittedBy: TEST_WALLET,
-    summary: "Non-https source should be rejected",
-    uri: "http://example.com/non-secure-feed",
-    sourceType: "NewsArticle",
-  });
-  const latest = updated.evidence[1];
-  assert.equal(latest.verificationStatus, "Rejected");
+  assert.throws(
+    () =>
+      engine.addEvidence({
+        disputeId: opened.id,
+        submittedBy: TEST_WALLET,
+        summary: "Non-https source should be rejected",
+        uri: "http://example.com/non-secure-feed",
+        sourceType: "NewsArticle",
+      }),
+    /https/i
+  );
 });
