@@ -250,3 +250,18 @@ body::after {
   position: relative;
   z-index: 1;
 }
+
+/* Ensure dropdown lists remain readable in dark UI themes. */
+select {
+  background-color: rgba(255,255,255,0.05);
+  color: #e2e8f0;
+}
+
+select option {
+  background-color: #0b1020;
+  color: #e2e8f0;
+}
+
+select option:disabled {
+  color: #94a3b8;
+}
