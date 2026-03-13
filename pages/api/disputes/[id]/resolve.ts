@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { normalizeWallet, store } from "../../../../lib/server/store";
+import { isValidWalletAddress, normalizeWallet, store } from "../../../../lib/server/store";
 import type {
   DisputeOutcome,
   InvalidMarketReasonCode,
@@ -45,7 +45,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   const disputeId = parseDisputeId(req.query.id);
-  const resolvedBy = normalizeWallet(req.body?.wallet);
+  const walletRaw = typeof req.body?.wallet === "string" ? req.body.wallet.trim() : "";
+  const resolvedBy = normalizeWallet(walletRaw);
   const outcome = parseOutcome(req.body?.outcome);
   const invalidReasonCode = parseInvalidReasonCode(req.body?.invalidReasonCode);
   const slashBps = parseSlashBps(req.body?.slashBps);
@@ -62,6 +63,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
   if (!resolutionNote || resolutionNote.length < 8) {
     res.status(400).json({ error: "Resolution note must be at least 8 characters." });
+    return;
+  }
+  // Require a valid wallet to resolve disputes.
+  if (!walletRaw || !isValidWalletAddress(resolvedBy)) {
+    res.status(401).json({ error: "Valid wallet required to resolve disputes." });
     return;
   }
 
