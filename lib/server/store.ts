@@ -1,4 +1,6 @@
 import { createHash, randomBytes } from "crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { dirname, resolve } from "path";
 import {
   DEMO_MARKETS,
   DEMO_POSITIONS,
@@ -13,6 +15,7 @@ import {
 import {
   SettlementDisputeEngine,
   type AddEvidenceInput,
+  type DisputeEngineSnapshot,
   type DisputeOutcome,
   type OpenDisputeInput,
   type ResolveDisputeInput,
@@ -23,6 +26,7 @@ import {
   type AuditLogRecord,
   type IndexerEventRecord,
   type IndexerReconcileReport,
+  type IndexerSnapshot,
 } from "./services/indexer";
 
 // OracleStore is the central in-memory backend coordinator.
@@ -38,6 +42,9 @@ const SEEDED_WALLETS = [
 ];
 const POSITION_BATCH_DELAY_MS = 45_000;
 const POSITION_BATCH_JITTER_MS = 12_000;
+const STORE_SNAPSHOT_VERSION = 1;
+const STORE_PATH_ENV = "ORACLE_STORE_PATH";
+const DEFAULT_STORE_PATH = "mnt/oracle-store.json";
 
 interface StoredPosition extends DemoPosition {
   wallet: string;
@@ -67,6 +74,58 @@ export interface ProbabilityHistoryPoint {
   yesProbability: number;
   noProbability: number;
   volumeSol: number;
+}
+
+interface StoreSnapshot {
+  version: number;
+  savedAt: string;
+  markets: SerializedMarket[];
+  positions: SerializedPosition[];
+  probabilityByMarket: Array<{ marketId: number; points: SerializedProbabilityPoint[] }>;
+  telemetryByMarket: Array<{ marketId: number; events: SerializedTelemetryEvent[] }>;
+  pendingTelemetry: SerializedPendingTelemetryEvent[];
+  nextMarketId: number;
+  nextPositionId: number;
+  disputeEngine: DisputeEngineSnapshot;
+  indexer: IndexerSnapshot;
+}
+
+interface SerializedMarket extends Omit<DemoMarket, "resolutionTimestamp" | "timeline"> {
+  resolutionTimestamp: string;
+  timeline: Array<{
+    id: string;
+    label: string;
+    note: string;
+    timestamp: string;
+    status: "completed" | "active" | "upcoming";
+  }>;
+}
+
+interface SerializedPosition extends Omit<StoredPosition, "submittedAt" | "settledAt" | "sealedAt" | "pendingUntil"> {
+  submittedAt: string;
+  settledAt?: string;
+  sealedAt: string;
+  pendingUntil?: string;
+}
+
+interface SerializedProbabilityPoint {
+  timestamp: string;
+  yesProbability: number;
+  noProbability: number;
+  volumeSol: number;
+}
+
+interface SerializedTelemetryEvent {
+  marketId: number;
+  timestamp: string;
+  yesDelta: number;
+  noDelta: number;
+  volumeSol: number;
+  source: PositionVisibility;
+}
+
+interface SerializedPendingTelemetryEvent extends SerializedTelemetryEvent {
+  releaseAt: string;
 }
 
 export interface ListMarketFilters {
@@ -109,8 +168,20 @@ export class OracleStore {
   private indexer = new SolanaIndexerWorkerService();
   private nextMarketId: number;
   private nextPositionId: number;
+  private persistencePath?: string;
 
   constructor() {
+    this.persistencePath = resolvePersistencePath();
+    const snapshot = this.persistencePath ? loadStoreSnapshot(this.persistencePath) : null;
+    if (snapshot) {
+      this.applySnapshot(snapshot);
+      return;
+    }
+
+    this.seedDemoData();
+  }
+
+  private seedDemoData() {
     this.markets = DEMO_MARKETS.map(cloneMarket);
     this.positions = DEMO_POSITIONS.map((position, index) => {
       const cloned = clonePosition(position);
@@ -126,6 +197,61 @@ export class OracleStore {
       this.positions.reduce((max, position) => Math.max(max, position.id), 1000) + 1;
 
     this.seedIndexerAndTelemetry();
+    this.persistSnapshot();
+  }
+
+  private applySnapshot(snapshot: StoreSnapshot) {
+    if (snapshot.version !== STORE_SNAPSHOT_VERSION) {
+      throw new Error("Unsupported store snapshot version.");
+    }
+    this.markets = snapshot.markets.map(deserializeMarketSnapshot);
+    this.positions = snapshot.positions.map(deserializePositionSnapshot);
+    this.probabilityByMarket = new Map(
+      snapshot.probabilityByMarket.map((entry) => [
+        entry.marketId,
+        entry.points.map(deserializeProbabilityPointSnapshot),
+      ])
+    );
+    this.telemetryByMarket = new Map(
+      snapshot.telemetryByMarket.map((entry) => [
+        entry.marketId,
+        entry.events.map(deserializeTelemetryEventSnapshot),
+      ])
+    );
+    this.pendingTelemetry = snapshot.pendingTelemetry.map(deserializePendingTelemetrySnapshot);
+    this.nextMarketId = snapshot.nextMarketId;
+    this.nextPositionId = snapshot.nextPositionId;
+    this.disputeEngine.restore(snapshot.disputeEngine);
+    this.indexer.restore(snapshot.indexer);
+  }
+
+  private buildSnapshot(): StoreSnapshot {
+    return {
+      version: STORE_SNAPSHOT_VERSION,
+      savedAt: new Date().toISOString(),
+      markets: this.markets.map(serializeMarketSnapshot),
+      positions: this.positions.map(serializePositionSnapshot),
+      probabilityByMarket: Array.from(this.probabilityByMarket.entries()).map(
+        ([marketId, points]) => ({
+          marketId,
+          points: points.map(serializeProbabilityPointSnapshot),
+        })
+      ),
+      telemetryByMarket: Array.from(this.telemetryByMarket.entries()).map(([marketId, events]) => ({
+        marketId,
+        events: events.map(serializeTelemetryEventSnapshot),
+      })),
+      pendingTelemetry: this.pendingTelemetry.map(serializePendingTelemetrySnapshot),
+      nextMarketId: this.nextMarketId,
+      nextPositionId: this.nextPositionId,
+      disputeEngine: this.disputeEngine.snapshot(),
+      indexer: this.indexer.snapshot(),
+    };
+  }
+
+  private persistSnapshot() {
+    if (!this.persistencePath) return;
+    saveStoreSnapshot(this.persistencePath, this.buildSnapshot());
   }
 
   // Lists markets with optional filters used by the main discovery page.
@@ -205,6 +331,7 @@ export class OracleStore {
       timestamp: now,
     });
 
+    this.persistSnapshot();
     return cloneMarket(market);
   }
 
@@ -282,6 +409,7 @@ export class OracleStore {
       signature: txSig,
     });
 
+    this.persistSnapshot();
     return {
       position: clonePosition(position),
       txSig,
@@ -377,6 +505,8 @@ export class OracleStore {
     for (const marketId of touchedMarkets) {
       this.rebuildProbabilityHistory(marketId);
     }
+
+    this.persistSnapshot();
   }
 
   // Dispute APIs consume this market-scoped list.
@@ -412,6 +542,7 @@ export class OracleStore {
       timestamp: dispute.createdAt,
     });
 
+    this.persistSnapshot();
     return dispute;
   }
 
@@ -425,6 +556,7 @@ export class OracleStore {
       details: "Settlement evidence submitted.",
     });
 
+    this.persistSnapshot();
     return dispute;
   }
 
@@ -464,6 +596,7 @@ export class OracleStore {
       }
     }
 
+    this.persistSnapshot();
     return dispute;
   }
 
@@ -672,6 +805,159 @@ export class OracleStore {
 
     this.probabilityByMarket.set(marketId, points.map(cloneProbabilityPoint));
   }
+}
+
+function resolvePersistencePath(): string | undefined {
+  const configured = process.env[STORE_PATH_ENV]?.trim();
+  if (configured) {
+    return resolve(configured);
+  }
+  const isProduction = process.env.NODE_ENV === "production";
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  const isDevelopment = process.env.NODE_ENV === "development";
+  if (isProduction && !isBuildPhase) {
+    throw new Error("ORACLE_STORE_PATH must be set in production.");
+  }
+  if (isDevelopment) {
+    return resolve(DEFAULT_STORE_PATH);
+  }
+  return undefined;
+}
+
+function loadStoreSnapshot(path: string): StoreSnapshot | null {
+  try {
+    if (!existsSync(path)) return null;
+    const raw = readFileSync(path, "utf8");
+    const parsed = JSON.parse(raw) as StoreSnapshot;
+    if (!parsed || parsed.version !== STORE_SNAPSHOT_VERSION) {
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    console.error("[oracle-store] Failed to load snapshot.", error);
+    return null;
+  }
+}
+
+function saveStoreSnapshot(path: string, snapshot: StoreSnapshot): void {
+  try {
+    const resolved = resolve(path);
+    mkdirSync(dirname(resolved), { recursive: true });
+    const tmp = `${resolved}.tmp`;
+    writeFileSync(tmp, JSON.stringify(snapshot, null, 2), "utf8");
+    renameSync(tmp, resolved);
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
+    console.error("[oracle-store] Failed to persist snapshot.", error);
+  }
+}
+
+function serializeMarketSnapshot(market: DemoMarket): SerializedMarket {
+  return {
+    ...market,
+    resolutionTimestamp: market.resolutionTimestamp.toISOString(),
+    timeline: market.timeline.map((step) => ({
+      id: step.id,
+      label: step.label,
+      note: step.note,
+      timestamp: step.timestamp.toISOString(),
+      status: step.status,
+    })),
+  };
+}
+
+function deserializeMarketSnapshot(market: SerializedMarket): DemoMarket {
+  return {
+    ...market,
+    resolutionTimestamp: new Date(market.resolutionTimestamp),
+    timeline: market.timeline.map((step) => ({
+      ...step,
+      timestamp: new Date(step.timestamp),
+    })),
+  };
+}
+
+function serializePositionSnapshot(position: StoredPosition): SerializedPosition {
+  return {
+    ...position,
+    submittedAt: position.submittedAt.toISOString(),
+    settledAt: position.settledAt ? position.settledAt.toISOString() : undefined,
+    sealedAt: position.sealedAt.toISOString(),
+    pendingUntil: position.pendingUntil ? position.pendingUntil.toISOString() : undefined,
+  };
+}
+
+function deserializePositionSnapshot(position: SerializedPosition): StoredPosition {
+  return {
+    ...position,
+    submittedAt: new Date(position.submittedAt),
+    settledAt: position.settledAt ? new Date(position.settledAt) : undefined,
+    sealedAt: new Date(position.sealedAt),
+    pendingUntil: position.pendingUntil ? new Date(position.pendingUntil) : undefined,
+  };
+}
+
+function serializeProbabilityPointSnapshot(point: ProbabilityHistoryPoint): SerializedProbabilityPoint {
+  return {
+    timestamp: point.timestamp.toISOString(),
+    yesProbability: point.yesProbability,
+    noProbability: point.noProbability,
+    volumeSol: point.volumeSol,
+  };
+}
+
+function deserializeProbabilityPointSnapshot(point: SerializedProbabilityPoint): ProbabilityHistoryPoint {
+  return {
+    timestamp: new Date(point.timestamp),
+    yesProbability: point.yesProbability,
+    noProbability: point.noProbability,
+    volumeSol: point.volumeSol,
+  };
+}
+
+function serializeTelemetryEventSnapshot(event: TelemetryEvent): SerializedTelemetryEvent {
+  return {
+    marketId: event.marketId,
+    timestamp: event.timestamp.toISOString(),
+    yesDelta: event.yesDelta,
+    noDelta: event.noDelta,
+    volumeSol: event.volumeSol,
+    source: event.source,
+  };
+}
+
+function deserializeTelemetryEventSnapshot(event: SerializedTelemetryEvent): TelemetryEvent {
+  return {
+    marketId: event.marketId,
+    timestamp: new Date(event.timestamp),
+    yesDelta: event.yesDelta,
+    noDelta: event.noDelta,
+    volumeSol: event.volumeSol,
+    source: event.source,
+  };
+}
+
+function serializePendingTelemetrySnapshot(event: PendingTelemetryEvent): SerializedPendingTelemetryEvent {
+  return {
+    ...serializeTelemetryEventSnapshot(event),
+    releaseAt: event.releaseAt.toISOString(),
+  };
+}
+
+function deserializePendingTelemetrySnapshot(
+  event: SerializedPendingTelemetryEvent
+): PendingTelemetryEvent {
+  return {
+    marketId: event.marketId,
+    timestamp: new Date(event.timestamp),
+    yesDelta: event.yesDelta,
+    noDelta: event.noDelta,
+    volumeSol: event.volumeSol,
+    source: event.source,
+    releaseAt: new Date(event.releaseAt),
+  };
 }
 
 export function normalizeWallet(wallet: string | string[] | undefined): string {
