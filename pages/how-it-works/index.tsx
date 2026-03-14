@@ -63,9 +63,9 @@ export default function HowItWorks() {
               HOW IT <span className="gradient-text">WORKS</span>
             </h1>
             <p className="text-slate-400 font-body max-w-xl mx-auto leading-relaxed">
-              Oracle combines Solana's high-throughput execution with Arcium's
+              Oracle combines Solana&apos;s high-throughput execution with Arcium&apos;s
               cryptographic privacy layer to create prediction markets where no
-              participant's position is ever exposed.
+              participant&apos;s position is ever exposed.
             </p>
           </div>
 
