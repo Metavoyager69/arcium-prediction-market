@@ -122,6 +122,60 @@ export interface ResolveDisputeInput {
   now?: Date;
 }
 
+export interface DisputeEngineSnapshot {
+  version: 1;
+  nextDisputeId: number;
+  disputes: SerializedDisputeRecord[];
+}
+
+interface SerializedDisputeRecord {
+  id: string;
+  marketId: number;
+  submittedBy: string;
+  contestedResolver: string;
+  reason: string;
+  status: DisputeStatus;
+  createdAt: string;
+  updatedAt: string;
+  settlementStakeAtRiskSol: number;
+  challengeWindow: {
+    openedAt: string;
+    deadlineAt: string;
+    closedAt?: string;
+  };
+  evidence: Array<{
+    id: string;
+    submittedBy: string;
+    summary: string;
+    uri?: string;
+    sourceType: EvidenceSourceType;
+    sourceDomain?: string;
+    evidenceHash: string;
+    verificationStatus: EvidenceVerificationStatus;
+    createdAt: string;
+  }>;
+  resolution?: {
+    outcome: DisputeOutcome;
+    resolvedBy: string;
+    resolutionNote: string;
+    resolvedAt: string;
+  };
+  slashing?: {
+    slashBps: number;
+    slashAmountSol: number;
+    slashedResolver: string;
+    beneficiary: string;
+    reason: string;
+    appliedAt: string;
+  };
+  invalidResolution?: {
+    reasonCode: InvalidMarketReasonCode;
+    rationale: string;
+    refundMode: "full_refund";
+    decidedAt: string;
+  };
+}
+
 export class SettlementDisputeEngine {
   private disputes: SettlementDisputeRecord[] = [];
   private nextDisputeId = 1;
@@ -320,6 +374,22 @@ export class SettlementDisputeEngine {
     }
     return expiredCount;
   }
+
+  snapshot(): DisputeEngineSnapshot {
+    return {
+      version: 1,
+      nextDisputeId: this.nextDisputeId,
+      disputes: this.disputes.map(serializeDisputeSnapshot),
+    };
+  }
+
+  restore(snapshot: DisputeEngineSnapshot): void {
+    if (!snapshot || snapshot.version !== 1) {
+      throw new Error("Unsupported dispute engine snapshot version.");
+    }
+    this.nextDisputeId = snapshot.nextDisputeId;
+    this.disputes = snapshot.disputes.map(deserializeDisputeSnapshot);
+  }
 }
 
 function randomId(prefix: string): string {
@@ -358,6 +428,122 @@ function cloneDispute(dispute: SettlementDisputeRecord): SettlementDisputeRecord
       ? {
           ...dispute.resolution,
           resolvedAt: new Date(dispute.resolution.resolvedAt),
+        }
+      : undefined,
+  };
+}
+
+function serializeDisputeSnapshot(dispute: SettlementDisputeRecord): SerializedDisputeRecord {
+  return {
+    id: dispute.id,
+    marketId: dispute.marketId,
+    submittedBy: dispute.submittedBy,
+    contestedResolver: dispute.contestedResolver,
+    reason: dispute.reason,
+    status: dispute.status,
+    createdAt: dispute.createdAt.toISOString(),
+    updatedAt: dispute.updatedAt.toISOString(),
+    settlementStakeAtRiskSol: dispute.settlementStakeAtRiskSol,
+    challengeWindow: {
+      openedAt: dispute.challengeWindow.openedAt.toISOString(),
+      deadlineAt: dispute.challengeWindow.deadlineAt.toISOString(),
+      closedAt: dispute.challengeWindow.closedAt
+        ? dispute.challengeWindow.closedAt.toISOString()
+        : undefined,
+    },
+    evidence: dispute.evidence.map((item) => ({
+      id: item.id,
+      submittedBy: item.submittedBy,
+      summary: item.summary,
+      uri: item.uri,
+      sourceType: item.sourceType,
+      sourceDomain: item.sourceDomain,
+      evidenceHash: item.evidenceHash,
+      verificationStatus: item.verificationStatus,
+      createdAt: item.createdAt.toISOString(),
+    })),
+    resolution: dispute.resolution
+      ? {
+          outcome: dispute.resolution.outcome,
+          resolvedBy: dispute.resolution.resolvedBy,
+          resolutionNote: dispute.resolution.resolutionNote,
+          resolvedAt: dispute.resolution.resolvedAt.toISOString(),
+        }
+      : undefined,
+    slashing: dispute.slashing
+      ? {
+          slashBps: dispute.slashing.slashBps,
+          slashAmountSol: dispute.slashing.slashAmountSol,
+          slashedResolver: dispute.slashing.slashedResolver,
+          beneficiary: dispute.slashing.beneficiary,
+          reason: dispute.slashing.reason,
+          appliedAt: dispute.slashing.appliedAt.toISOString(),
+        }
+      : undefined,
+    invalidResolution: dispute.invalidResolution
+      ? {
+          reasonCode: dispute.invalidResolution.reasonCode,
+          rationale: dispute.invalidResolution.rationale,
+          refundMode: "full_refund",
+          decidedAt: dispute.invalidResolution.decidedAt.toISOString(),
+        }
+      : undefined,
+  };
+}
+
+function deserializeDisputeSnapshot(snapshot: SerializedDisputeRecord): SettlementDisputeRecord {
+  return {
+    id: snapshot.id,
+    marketId: snapshot.marketId,
+    submittedBy: snapshot.submittedBy,
+    contestedResolver: snapshot.contestedResolver,
+    reason: snapshot.reason,
+    status: snapshot.status,
+    createdAt: new Date(snapshot.createdAt),
+    updatedAt: new Date(snapshot.updatedAt),
+    settlementStakeAtRiskSol: snapshot.settlementStakeAtRiskSol,
+    challengeWindow: {
+      openedAt: new Date(snapshot.challengeWindow.openedAt),
+      deadlineAt: new Date(snapshot.challengeWindow.deadlineAt),
+      closedAt: snapshot.challengeWindow.closedAt
+        ? new Date(snapshot.challengeWindow.closedAt)
+        : undefined,
+    },
+    evidence: snapshot.evidence.map((item) => ({
+      id: item.id,
+      submittedBy: item.submittedBy,
+      summary: item.summary,
+      uri: item.uri,
+      sourceType: item.sourceType,
+      sourceDomain: item.sourceDomain,
+      evidenceHash: item.evidenceHash,
+      verificationStatus: item.verificationStatus,
+      createdAt: new Date(item.createdAt),
+    })),
+    resolution: snapshot.resolution
+      ? {
+          outcome: snapshot.resolution.outcome,
+          resolvedBy: snapshot.resolution.resolvedBy,
+          resolutionNote: snapshot.resolution.resolutionNote,
+          resolvedAt: new Date(snapshot.resolution.resolvedAt),
+        }
+      : undefined,
+    slashing: snapshot.slashing
+      ? {
+          slashBps: snapshot.slashing.slashBps,
+          slashAmountSol: snapshot.slashing.slashAmountSol,
+          slashedResolver: snapshot.slashing.slashedResolver,
+          beneficiary: snapshot.slashing.beneficiary,
+          reason: snapshot.slashing.reason,
+          appliedAt: new Date(snapshot.slashing.appliedAt),
+        }
+      : undefined,
+    invalidResolution: snapshot.invalidResolution
+      ? {
+          reasonCode: snapshot.invalidResolution.reasonCode,
+          rationale: snapshot.invalidResolution.rationale,
+          refundMode: "full_refund",
+          decidedAt: new Date(snapshot.invalidResolution.decidedAt),
         }
       : undefined,
   };
