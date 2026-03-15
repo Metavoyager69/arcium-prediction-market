@@ -18,7 +18,6 @@ interface MarketCardProps {
 
 const STATUS_COLORS: Record<MarketStatus, string> = {
   Open: "#34D399",
-  Resolving: "#C084FC",
   SettledPending: "#FACC15",
   Settled: "#22D3EE",
   Cancelled: "#94A3B8",
