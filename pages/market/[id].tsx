@@ -34,7 +34,7 @@ import {
   type ProbabilityHistoryPoint,
   type SettlementDisputeRecord,
 } from "../../utils/api";
-import { ensureWalletUnlocked } from "../../utils/wallet-guard";
+import { createWalletAuthPayload, ensureWalletUnlocked } from "../../utils/wallet-guard";
 
 // Market detail page: combines trading UI, privacy-safe activity, and dispute actions.
 type StepState = "idle" | "encrypting" | "submitting" | "confirmed" | "error";
@@ -223,6 +223,7 @@ export default function MarketPage() {
       if (stakeInputRef.current) stakeInputRef.current.value = "";
       setHasStake(false);
       await ensureWalletUnlocked(wallet, "submit an encrypted position");
+      const auth = await createWalletAuthPayload(wallet, "positions:submit");
       setStep("encrypting");
 
       const clusterKey = await fetchClusterPublicKey(ARCIUM_DEVNET_CLUSTER);
@@ -251,6 +252,7 @@ export default function MarketPage() {
           version: sealedPayload.version,
           encryptedStake: serializeCiphertext(sealedPayload.encryptedStake),
           encryptedChoice: serializeCiphertext(sealedPayload.encryptedChoice),
+          auth,
         }),
       });
       const payload = await response.json();
@@ -283,6 +285,7 @@ export default function MarketPage() {
 
     try {
       await ensureWalletUnlocked(wallet, "open a dispute");
+      const auth = await createWalletAuthPayload(wallet, "disputes:open");
       const sourceDomain = evidenceUri
         ? (() => {
             try {
@@ -302,6 +305,7 @@ export default function MarketPage() {
           evidenceUri: evidenceUri || undefined,
           evidenceSourceType,
           evidenceSourceDomain: sourceDomain,
+          auth,
         }),
       });
       const payload = await response.json();
@@ -323,6 +327,7 @@ export default function MarketPage() {
     if (!connected || !publicKey) return;
     try {
       await ensureWalletUnlocked(wallet, "resolve a dispute");
+      const auth = await createWalletAuthPayload(wallet, "disputes:resolve");
       const response = await fetch(`/api/disputes/${disputeId}/resolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -336,6 +341,7 @@ export default function MarketPage() {
             outcome === "MarketInvalid"
               ? "Invalid criteria confirmed by challenger evidence."
               : "Settlement evidence is sufficient and upheld.",
+          auth,
         }),
       });
       const payload = await response.json();
