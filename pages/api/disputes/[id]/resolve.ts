@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { enforceRateLimit, rateLimitKey, requireJson } from "../../../../lib/server/api-guards";
 import { isValidWalletAddress, normalizeWallet, store } from "../../../../lib/server/store";
 import type {
   DisputeOutcome,
@@ -13,6 +14,15 @@ const INVALID_REASON_CODES: InvalidMarketReasonCode[] = [
   "SETTLEMENT_MANIPULATION",
   "FORCE_MAJEURE_EVENT",
 ];
+const BODY_LIMIT = "64kb";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: BODY_LIMIT,
+    },
+  },
+};
 
 function parseDisputeId(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -41,6 +51,17 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     res.status(405).json({ error: `Method ${req.method ?? "UNKNOWN"} Not Allowed` });
+    return;
+  }
+
+  if (!requireJson(req, res)) return;
+  if (
+    !enforceRateLimit(req, res, {
+      key: rateLimitKey(req, "disputes:resolve"),
+      limit: 6,
+      windowMs: 60 * 60 * 1000,
+    })
+  ) {
     return;
   }
 
