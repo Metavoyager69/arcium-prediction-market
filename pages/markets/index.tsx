@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
-import Navbar from "../components/Navbar";
-import MarketCard from "../components/MarketCard";
+import Navbar from "../../components/Navbar";
+import MarketCard from "../../components/MarketCard";
 import {
   DEMO_MARKETS,
   MARKET_CATEGORIES,
   type DemoMarket,
   type MarketCategory,
-} from "../utils/program";
-import { deserializeMarket, type ApiMarket } from "../utils/api";
+} from "../../utils/program";
+import { deserializeMarket, type ApiMarket } from "../../utils/api";
 
 type StatusFilter = "all" | "open" | "settled";
 type CategoryFilter = "all" | MarketCategory;
@@ -30,7 +30,7 @@ export default function MarketsPage() {
 
       try {
         const response = await fetch("/api/markets");
-        const payload = await response.json();
+        const contentType = response.headers.get("content-type"); if (!contentType || !contentType.includes("application/json")) { const text = await response.text(); throw new Error(`Expected JSON but got ${contentType || "unknown"}. Status: ${response.status}. Preview: ${text.slice(0, 100)}`); } const payload = await response.json();
 
         if (!response.ok) {
           throw new Error(payload?.error ?? "Could not load markets.");

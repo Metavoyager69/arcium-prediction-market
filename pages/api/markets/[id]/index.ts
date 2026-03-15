@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { serializeMarket, serializePosition } from "../../../utils/api";
-import { isValidWalletAddress, normalizeWallet, store } from "../../../lib/server/store";
+import { serializeMarket, serializePosition } from "../../../../utils/api";
+import { isValidWalletAddress, normalizeWallet, store } from "../../../../lib/server/store";
 
 // API endpoint: returns one market plus related chart/activity/dispute data.
 // Important privacy rule: position history is wallet-scoped only.
