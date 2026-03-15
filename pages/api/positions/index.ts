@@ -1,6 +1,6 @@
 ﻿import type { NextApiRequest, NextApiResponse } from "next";
 import { serializePosition } from "../../../utils/api";
-import { enforceRateLimit, rateLimitKey, requireJson } from "../../../lib/server/api-guards";
+import { enforceRateLimit, rateLimitKey, requireJson, requireWalletAuth } from "../../../lib/server/api-guards";
 import { isValidWalletAddress, normalizeWallet, store } from "../../../lib/server/store";
 
 const BODY_LIMIT = "64kb";
@@ -99,6 +99,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const commitment = parseCommitment(req.body?.commitment);
     const sealedAt = parseSealedAt(req.body?.sealedAt);
     const version = parseVersion(req.body?.version);
+    const auth = typeof req.body?.auth === "object" ? req.body.auth : undefined;
 
     if (!Number.isFinite(marketId)) {
       res.status(400).json({ error: "A valid market id is required." });
@@ -123,6 +124,15 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     // Require a valid wallet to avoid spoofed submissions.
     if (!walletRaw || !isValidWalletAddress(wallet)) {
       res.status(401).json({ error: "Valid wallet required to submit positions." });
+      return;
+    }
+    if (
+      !requireWalletAuth(req, res, {
+        wallet,
+        action: "positions:submit",
+        auth,
+      })
+    ) {
       return;
     }
 
